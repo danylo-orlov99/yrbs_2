@@ -84,7 +84,7 @@ See example analyses with YRBS in Rmarkdown files for examples of applying these
 Use file pane to navigate to the directory where you are keeping your YRBS file, click the gear and choose "set working directory" and paste that command into this code chunk.  In the same code chunk, load the data.
 
 ```{r}
-yrbs=read.dta13("~/Grad School/Fall 2023/Cat Data Analysis/yrbs2021.dta")
+yrbs=read.dta13("~/Documents/yrbs_2/yrbs2021.dta")
 ```
 
 
