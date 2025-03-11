@@ -1,0 +1,470 @@
+---
+title: 'Biostat 5201/7302: Project Assignment 4 template'
+author: "Danylo Orlov"
+date: "`r format(Sys.Date())`"
+output:
+  word_document:
+    toc: yes
+    toc_depth: '2'
+  html_document:
+    theme: readable
+    toc: yes
+    toc_depth: 2
+    toc_float: yes
+    code_download: yes
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# To submit this assignment
+
+To submit this assignment, knit this file and submit to Brightspace in PDF or Word. 
+
+There is an example bivariate association at the top of the Rmarkdown file with YRBS analysis.
+
+# Load libraries
+
+```{r, message=F,warning=F}
+library(faraway)
+library(readstata13)
+library(mosaic)
+library(psy)
+library(tab)
+library(stats)
+library(Hmisc)
+library(table1)
+```
+
+
+
+Biostatistics 5201/7302 Project Assignment 4: Initial analysis 
+
+In this assignment, you will do your initial analysis to predict your outcome. The outcome goes on the LEFT and the exposure on the RIGHT.
+
+Add potential covariates in order of importance. If you use stepwise regression, create the model in a subset of the data before testing it in the entire data. The Gelman/Hill textbook Data analysis using regression and multilevel/hierarchical models offers the following guidelines:
+1. Keep a predictor if it has the expected sign even if not significant because it will be unlikely to hurt the model.
+
+2. Consider removing a predictor if it has the opposite of the expected sign and not significant because it could hurt the model.
+
+3. If a predictor has the opposite of the expected sign and it is significant, think about whether something unexpected could be happening: e.g., if Simpson’s paradox is causing the reversal of the sign, you need to consider other covariates. Or perhaps the sign is real, and there is an unexpected effect. Or perhaps the data is miscoded.
+
+4. Keep a predictor in the model if it has the expected sign and is significant.
+
+5. Consider interactions if there are large effects or a substantiative reason to expect effect modification.
+
+Test whether assumptions of your model are met.
+
+Compare alternative models: Poisson or negative binomial may be more appropriate than logistic regression for a binary outcome. Linear probability model may be clearer. Non-parametric method such as smoothing splines or an automated model like regression trees may be appropriate.
+
+Consider additional questions raised by your analysis and answer them.
+
+Format statistical output as an easy-to-read table or as a plot. Plotting coefficients or predicted values is sometimes useful. Choose the most important tables and figures for your paper.
+
+Write a short description of these results and their implications. Also, write up the methods that you used to create the data and do the analysis. Statistical code or output does not belong in body of paper or in the presentation.
+
+For the subsequent project asssignment, continue to develop your analysis.
+
+See example analyses with YRBS in Rmarkdown files for examples of applying these methods to YRBS:
+• Survey-weighted linear regression
+• Survey-weighted logistic regression
+• Boosting to identify important variables to predict an outcome 
+• Multinomial regression
+• Linear discriminant analysis
+• Proportional odds regression
+
+
+# Code from Assignmnet 3
+
+
+## Load data
+Use file pane to navigate to the directory where you are keeping your YRBS file, click the gear and choose "set working directory" and paste that command into this code chunk.  In the same code chunk, load the data.
+
+```{r}
+yrbs=read.dta13("~/Grad School/Fall 2023/Cat Data Analysis/yrbs2021.dta")
+```
+
+
+# Research Question
+
+Among US adolescents, are adolescents who have experienced sexual violence in the past 12 months more likely to have considered attempting suicide than adolescents who have not experienced sexual violence in that time period? 
+
+P (Population) = US adolescents
+I (Intervention/Exposure) = Experienced sexual violence in the past 12 months
+C (comparison group) = Did not experience sexual violence in the past 12 months
+O (Outcome) = Considered committing suicide in the past 12 months
+
+# Define variables
+
+## Outcome: Considering suicide (Q26):
+
+```{r}
+yrbs$Consider.Suicide=factor(yrbs$QN26==1, levels=c(T, F), labels=c("Considered Attempting Suicide in Past Year", "Did Not Consider Attempting Suicide in Past Year"))
+label(yrbs$Consider.Suicide)="Serious Suicide Consideration in Past Year"
+tally(Q26 ~ Consider.Suicide , data=yrbs)
+tally(~ Consider.Suicide , data=yrbs, useNA="no", format="percent")
+```
+
+## Predictor: Experiencing sexual violence (Q20):
+
+```{r}
+yrbs$Sexual.Violence = factor(yrbs$QN20==1, levels=c(T, F), labels=c("Sexual Violence in Past Year", "No Sexual Violence in Past Year"))
+label(yrbs$Sexual.Violence)="Sexual Violence Experience in Past Year"
+tally(Q20 ~ Sexual.Violence , data=yrbs)
+tally(~Sexual.Violence , data=yrbs, useNA="no", format="percent")
+```
+
+## Covariates
+
+Control variables:  age (Q1), sex (Q2), race (Q5), sexuality (Q65), physical fighting (Q16), physical dating violence (Q22), bullying at school (Q23), combined common illicit substance use scale (Q32, 35, 41)
+
+Age:
+
+```{r}
+yrbs$Age = as.numeric(yrbs$Q1)+11
+label(yrbs$Age)="Age in years"
+tally(Q1~Age, data=yrbs)
+```
+Sex:
+
+```{r}
+yrbs$Sex= factor(yrbs$Q2=="Female", levels=c(T, F), labels=c("Female", "Male"))
+label(yrbs$Sex)="Sex"
+tally(Q2~Sex, data=yrbs)
+```
+
+Race/ethnicity:
+
+```{r}
+yrbs$Race=yrbs$RACEETH
+label(yrbs$Race)="Race/ethnicity" 
+tally(~Race, data=yrbs)
+```
+Sexuality:
+
+LGB = lesbian/gay/bisexual LGBQ = lesbian/gay/bisexual/questioning
+```{r}
+yrbs$LGB=factor((yrbs$Q65=="Gay or lesbian" | yrbs$Q65=="Bisexual"), levels=c(T, F), 
+                labels=c("Gay/lesbian/bisexual", "Not LGB"))
+label(yrbs$LGB)="Sexual orientation"
+tally(Q65 ~ LGB, data=yrbs)
+
+yrbs$LGBQ=factor((yrbs$LGB=="Gay/lesbian/bisexual" | yrbs$Q65=="Not sure"), levels=c(T, F), 
+                labels=c("Gay/lesbian/bisexual/questioning", "Not LGBQ"))
+label(yrbs$LGBQ)="Sexual orientation"
+tally(Q65 ~ LGBQ , data=yrbs)
+tally(~LGBQ , data=yrbs, useNA="no", format="percent")
+```
+Physical fighting:
+
+```{r}
+yrbs$Physical.Fighting = factor(yrbs$QN16==1, levels=c(T, F), labels=c("Was in a Physical Fight in Past Year", "Was not in a Physical Fight in Past Year"))
+label(yrbs$Physical.Fighting)="Physical Fighting Experience in Past Year"
+tally(Q16 ~ Physical.Fighting , data=yrbs)
+```
+Physical dating violence:
+
+```{r}
+yrbs$Physical.Dating.Violence = factor(yrbs$QN22==1, levels=c(T, F), labels=c("Experienced Physical Dating Violence in Past Year", "Didn't Experience Physical Dating Violence in Past Year"))
+label(yrbs$Physical.Dating.Violence)="Physical Dating Violence Experience in Past Year"
+tally(Q22 ~ Physical.Dating.Violence , data=yrbs)
+```
+School bullying:
+
+```{r}
+yrbs$School.Bullying = factor(yrbs$QN23==1, levels=c(T, F), labels=c("Was Bullied on School Property in Past Year", "Wasn't Bullied on School Property in Past Year"))
+label(yrbs$School.Bullying)="Bullying on School Property in Past Year"
+tally(Q23 ~ School.Bullying , data=yrbs)
+```
+
+Illicit Substance Consumption variables:
+
+```{r}
+yrbs$smoking=yrbs$Q32
+yrbs$vaping=yrbs$Q35
+yrbs$alcohol=yrbs$Q41
+```
+
+Let's analyze these illicit drugs:
+
+```{r}
+illicit.drugs.3=na.omit(with(yrbs, cbind(smoking, vaping, alcohol)))
+factanal(illicit.drugs.3, factors=1)
+```
+We seem to have one illicit common substance consumption variable here, the sum of 3 variables using the 0.4 criterion. 
+
+```{r}
+cronbach(with(yrbs, cbind(smoking, vaping, alcohol)))
+```
+We have a Cronbach's alpha value of 0.63 with this one factor including 3 substances. 
+
+```{r}
+tally(~smoking, data=yrbs)
+tally(~vaping, data=yrbs)
+tally(~alcohol, data=yrbs)
+```
+These are all on the same scale, so convert to numbers and sum. Here we have an illicit drug consumption scale from 0 (no illicit substance consumption) to 18 (highest possible amount of illicit substance consumption).
+
+```{r}
+yrbs$Illicit.Substance.Scale= with(yrbs, as.numeric(smoking) + as.numeric(vaping) + as.numeric(alcohol))-3
+histogram(~Illicit.Substance.Scale, data=yrbs, breaks = 18)
+```
+# Multiple Logistic Model Building
+
+Setting References:
+
+```{r}
+yrbs$Consider.Suicide <- relevel(yrbs$Consider.Suicide, ref = "Did Not Consider Attempting Suicide in Past Year")
+yrbs$Sexual.Violence <- relevel(yrbs$Sexual.Violence, ref = "No Sexual Violence in Past Year")
+yrbs$Race <- relevel(yrbs$Race, ref = "White")
+yrbs$LGBQ <- relevel(yrbs$LGBQ, ref = "Not LGBQ")
+yrbs$Physical.Fighting <- relevel(yrbs$Physical.Fighting, ref = "Was not in a Physical Fight in Past Year")
+yrbs$Physical.Dating.Violence <- relevel(yrbs$Physical.Dating.Violence, ref = "Didn't Experience Physical Dating Violence in Past Year")
+yrbs$School.Bullying <- relevel(yrbs$School.Bullying, ref = "Wasn't Bullied on School Property in Past Year")
+```
+
+
+Let us try using survey-weighted logistic regression, only putting in our main predictor into the model:
+
+Survey weighted code:
+
+```{r}
+library(survey)
+yrbsdes <- svydesign(id=~PSU, weight=~WEIGHT, strata=~STRATUM,data=yrbs, nest=T)
+```
+
+```{r}
+lmod <- svyglm(formula = Consider.Suicide ~ Sexual.Violence, family = binomial, design = yrbsdes)
+summary(lmod)
+cbind(exp(coef(lmod)), exp(confint(lmod)))
+```
+For those who have experienced sexual violence in the past year, there was a 7.12 greater odds of considering attempting suicide compared to those who have not experienced sexual violence (AOR = 7.12, 95% CI (6.27, 8.08)).
+
+Next, we will add LGBQ status:
+
+```{r}
+lmod2 <- svyglm(formula = Consider.Suicide ~ Sexual.Violence + LGBQ, family = binomial, design = yrbsdes)
+summary(lmod2)
+cbind(exp(coef(lmod2)), exp(confint(lmod2)))
+```
+The LGBQ variable has the predicted direction of association and is significant: we keep it.
+
+Next, we will add Physical Dating Violence:
+
+```{r}
+lmod3 <- svyglm(formula = Consider.Suicide ~ Sexual.Violence + LGBQ + Physical.Dating.Violence, family = binomial, design = yrbsdes)
+summary(lmod3)
+cbind(exp(coef(lmod3)), exp(confint(lmod3)))
+```
+The Physical Dating Violence variable has the predicted direction of association and is significant: we keep it.
+
+Next, we will add Physical Fighting:
+
+```{r}
+lmod4 <- svyglm(formula = Consider.Suicide ~ Sexual.Violence + LGBQ + Physical.Dating.Violence + Physical.Fighting, family = binomial, design = yrbsdes)
+summary(lmod4)
+cbind(exp(coef(lmod4)), exp(confint(lmod4)))
+```
+The Physical Dating Violence variable has the predicted direction of association and is significant: we keep it.
+
+Next, we will add school bullying:
+
+```{r}
+lmod5 <- svyglm(formula = Consider.Suicide ~ Sexual.Violence + LGBQ + Physical.Dating.Violence + Physical.Fighting + School.Bullying, family = binomial, design = yrbsdes)
+summary(lmod5)
+cbind(exp(coef(lmod5)), exp(confint(lmod5)))
+```
+The School Bullying variable has the predicted direction of association and is significant: we keep it.
+
+Next, we will add Sex:
+
+```{r}
+lmod6 <- svyglm(formula = Consider.Suicide ~ Sexual.Violence + LGBQ + Physical.Dating.Violence + Physical.Fighting + School.Bullying + Sex, family = binomial, design = yrbsdes)
+summary(lmod6)
+cbind(exp(coef(lmod6)), exp(confint(lmod6)))
+```
+The Sex variable has the predicted direction of association and is significant: we keep it.
+
+Next, we will add age:
+
+```{r}
+lmod7 <- svyglm(formula = Consider.Suicide ~ Sexual.Violence + LGBQ + Physical.Dating.Violence + Physical.Fighting + School.Bullying + Sex + Age, family = binomial, design = yrbsdes)
+summary(lmod7)
+cbind(exp(coef(lmod7)), exp(confint(lmod7)))
+```
+Interestingly, for every unit increase in age, the odds of considering attempting suicide seem to decrease. Let's keep age in the model, as this seems to be an interesting effect to explore, even though it is not significant. 
+
+Next, we will add Illicit Substance Consumption Scale:
+
+```{r}
+lmod8 <- svyglm(formula = Consider.Suicide ~ Sexual.Violence + LGBQ + Physical.Dating.Violence + Physical.Fighting + School.Bullying + Sex + Age + Illicit.Substance.Scale, family = binomial, design = yrbsdes)
+summary(lmod8)
+cbind(exp(coef(lmod8)), exp(confint(lmod8)))
+```
+The Illicit Substance Scale variable has the predicted direction of association and is significant: we keep it.
+
+Finally, we will add Race:
+
+```{r}
+lmod9 <- svyglm(formula = Consider.Suicide ~ Sexual.Violence + LGBQ + Physical.Dating.Violence + Physical.Fighting + School.Bullying + Sex + Age + Illicit.Substance.Scale + Race, family = binomial, design = yrbsdes)
+summary(lmod9)
+cbind(exp(coef(lmod9)), exp(confint(lmod9)))
+```
+The race variable is a mixed bag; only Hawaiian/OPI and Hispanic/Latino has a significant association, and the directions are split almost equally between positive and negative. Let's keep this variable, since prior literature has found inconsistencies in race as well (different cultural norms, lots of variation). 
+
+We can also test whether we need to stratify our analysis by sex or LGBQ status with interactio terms:
+
+```{r}
+lmod10 <- svyglm(formula = Consider.Suicide ~ Sexual.Violence + LGBQ + Physical.Dating.Violence + Physical.Fighting + School.Bullying + Sex + Age + Illicit.Substance.Scale + Race + Sexual.Violence*Sex, family = binomial, design = yrbsdes)
+summary(lmod10)
+cbind(exp(coef(lmod10)), exp(confint(lmod10)))
+```
+The interaction term of sexual violence and sex is not significant (p = 0.7288); no need to stratify the model by sex.
+
+```{r}
+lmod11 <- svyglm(formula = Consider.Suicide ~ Sexual.Violence + LGBQ + Physical.Dating.Violence + Physical.Fighting + School.Bullying + Sex + Age + Illicit.Substance.Scale + Race + Sexual.Violence*LGBQ, family = binomial, design = yrbsdes)
+summary(lmod11)
+cbind(exp(coef(lmod11)), exp(confint(lmod11)))
+```
+The interaction term of sexual violence and LGBQ status is not significant (p = 0.7551); no need to stratify the model by LGBQ.
+
+# Testing Assumptions of Logistic Model
+
+```{r}
+plot(lmod9)
+```
+In the residuals vs fitted plot, we see two distinct lines, which makes sense since our outcome can take on two values. There seems to be some systematic deviation from random scattering here, suggesting the assumption of equal variance might not be met. In addition, the QQ plot suggests some deviation from normality, as it does not closely follow the null line (but we wouldn't expect normality for logistic regression anyway. There are also a few influential cases (outliers). 
+
+```{r}
+with(lmod9, cbind(res.deviance = deviance, df = df.residual, p = pchisq(deviance, df.residual, lower.tail=TRUE)))
+with(lmod9, 1-pchisq(deviance, df.residual))
+dispersion <- deviance(lmod9) / df.residual(lmod9)
+dispersion
+```
+We test for the model's fit by comparing the residual deviance (5334.472) to the residual degrees of freedom (19). pchisq(deviance(model), df.residual(model)) gives the cumulative probability of the Chi-square statistic up to the observed residual deviance, and subtracting that from 1 gives the probability of obtaining a residual deviance as extreme as (or more extreme than) the observed value under the null hypothesis that the model fits well. Based on this test, the fit is not great (p < 0.05).
+
+
+# Comparing a Poisson Model Alternative:
+
+Let us now try the selected model using Poisson regression:
+
+```{r}
+pmod <- svyglm(as.numeric(Consider.Suicide) ~ Sexual.Violence + LGBQ + Physical.Dating.Violence + Physical.Fighting + School.Bullying + Sex + Age + Illicit.Substance.Scale + Race, family = poisson, design = yrbsdes)
+summary(pmod)
+cbind(exp(coef(pmod)), exp(confint(pmod)))
+```
+In the Poisson model, all our covariates still have expected signs, and the significance is unchanged. We could consider presenting this model in the paper as well perhaps.
+
+```{r}
+with(pmod, cbind(res.deviance = deviance, df = df.residual, p = pchisq(deviance, df.residual, lower.tail=TRUE)))
+with(pmod, 1-pchisq(deviance, df.residual))
+```
+This Poisson model fits poorly too (p < 0.05), but we have a smaller residual deviance (602), so it is probably the better model.
+
+Sample size:
+
+```{r}
+library(faraway)
+pmod2 <- glm(as.numeric(Consider.Suicide) ~ Sexual.Violence + LGBQ + Physical.Dating.Violence + Physical.Fighting + School.Bullying + Sex + Age + Illicit.Substance.Scale + Race, family = poisson, data = yrbs)
+sumary(pmod2)
+```
+
+# Bivariate Analysis 
+
+```{r}
+library(survey)
+yrbsdes <- svydesign(id=~PSU, weight=~WEIGHT, strata=~STRATUM,data=yrbs, nest=T)
+```
+
+Unadjusted bivariate analysis: 
+```{r}
+yrbs$Consider.Suicide <- relevel(yrbs$Consider.Suicide, ref = "Considered Attempting Suicide in Past Year")
+yrbs$Sexual.Violence <- relevel(yrbs$Sexual.Violence, ref = "Sexual Violence in Past Year")
+
+tally(Consider.Suicide ~ Sexual.Violence, data=yrbs, format="percent", useNA="no")
+chisq.test(tally(Consider.Suicide ~ Sexual.Violence, data=yrbs, format="count", useNA="no"))
+```
+Among adolescents who have experienced sexual violence in the past year, 56.78% have considered attempting suicide; among adolescents who have not experienced sexual violence in the past year, 16.06%% have considered attempting suicide, which is significantly lower (p<0.001).
+
+Bar plot showcasing the relationship between the dichotomized variables:
+
+```{r}
+yrbs$Consider.Suicide <- relevel(yrbs$Consider.Suicide, ref = "Considered Attempting Suicide in Past Year")
+yrbs$Sexual.Violence <- relevel(yrbs$Sexual.Violence, ref = "Sexual Violence in Past Year")
+
+barplot(tally(Consider.Suicide ~ Sexual.Violence, data=yrbs, format="percent", useNA="no"), xlab = "Sexual Violence", ylab = "Percent", beside=T, ylim=c(0,100), legend = T, args.legend = list(y=110, legend = c("Considered Suicide in Past Year", "Did Not Consider Suicide in Past Year")))
+```
+
+Survey-weighted bivariate analysis with outcome and predictor: 
+
+```{r}
+svyby(~Consider.Suicide, ~Sexual.Violence, design=yrbsdes, svymean, na.rm=T)
+```
+```{r}
+svychisq(~Consider.Suicide + Sexual.Violence, design=yrbsdes)
+```
+Among adolescents who have experienced sexual violence in the past year, 59.3% have considered attempting suicide; among adolescents who have not experienced sexual violence in the past year, 17.0%% have considered attempting suicide, which is significantly lower (p<0.001).
+
+# Table 1
+
+Unadjusted table 1: 
+
+Relevel everything again:
+
+```{r}
+yrbs$Consider.Suicide <- relevel(yrbs$Consider.Suicide, ref = "Considered Attempting Suicide in Past Year")
+yrbs$Sexual.Violence <- relevel(yrbs$Sexual.Violence, ref = "Sexual Violence in Past Year")
+yrbs$Race <- relevel(yrbs$Race, ref = "White")
+yrbs$LGBQ <- relevel(yrbs$LGBQ, ref = "Gay/lesbian/bisexual/questioning")
+yrbs$Physical.Fighting <- relevel(yrbs$Physical.Fighting, ref = "Was in a Physical Fight in Past Year")
+yrbs$Physical.Dating.Violence <- relevel(yrbs$Physical.Dating.Violence, ref = "Experienced Physical Dating Violence in Past Year")
+yrbs$School.Bullying <- relevel(yrbs$School.Bullying, ref = "Was Bullied on School Property in Past Year")
+```
+
+```{r}
+tabmulti(Consider.Suicide + Sex + Age + Race + LGBQ + Physical.Dating.Violence + Physical.Fighting + School.Bullying + Illicit.Substance.Scale ~ Sexual.Violence, data = yrbs) 
+```
+
+
+Variables associated with sexual violence in past year include considering suicide, sex, race, LGBQ status, physical dating violence physical fighting, school bullying, and illicit substance use scale (p < 0.001). Age is not associated with sexual violence (p = 0.08).  
+
+
+```{r}
+table1(~Consider.Suicide + Sex + Age + Race + LGBQ + Physical.Dating.Violence + Physical.Fighting + School.Bullying + Illicit.Substance.Scale | Sexual.Violence, data = subset(yrbs, is.na(Sexual.Violence)==F)) 
+```
+
+Survey-weighted table 1:
+
+```{r}
+tabmulti.svy(Consider.Suicide + Sex + Age + Race + LGBQ + Physical.Dating.Violence + Physical.Fighting + School.Bullying + Illicit.Substance.Scale ~ Sexual.Violence , design = yrbsdes) 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
